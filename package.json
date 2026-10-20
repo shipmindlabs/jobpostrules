@@ -1,0 +1,39 @@
+{
+  "name": "jobpostrules",
+  "version": "0.1.0",
+  "description": "Lint a job posting before it is published: pay-transparency and disclosure rules by jurisdiction, prohibited application questions, and JobPosting markup that matches the visible page.",
+  "keywords": [
+    "job-posting",
+    "pay-transparency",
+    "compliance",
+    "lint",
+    "jobposting-schema"
+  ],
+  "license": "MIT",
+  "author": "Shipmind Labs <hello@shipmindlabs.com>",
+  "homepage": "https://shipmindlabs.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shipmindlabs/jobpostrules.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shipmindlabs/jobpostrules/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "typescript": "^5.9.2"
+  }
+}
