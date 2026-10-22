@@ -10,8 +10,9 @@ This is a lint, not legal advice.
 ## Status
 
 Core phase. The pay range is in place: a range is two numbers, one currency and one
-period, or it is a finding. Jurisdiction rules, application questions and markup checks
-follow.
+period, or it is a finding. The rule registry is in place, so a rule can only fail a
+posting once its primary source has been read. No legal rule ships yet; jurisdiction
+rules, application questions and markup checks follow.
 
 ## Requirements
 
@@ -44,6 +45,28 @@ const findings = checkPayRange({
 A `Finding` carries `ruleId`, `severity`, `message` and `at`, the path inside the posting
 that the finding points at. Findings sort by severity, then rule id, then path, so two
 runs over the same posting print identically.
+
+## Rule registry
+
+`src/rules/registry.ts` holds every rule as a record. A law or platform rule carries an
+id, a jurisdiction, a status and a citation `{url, section, verifiedAt}`. Its severity is
+derived from the status, never written by hand:
+
+| Status | Severity | Means |
+| --- | --- | --- |
+| `in-force` | error | Read in the primary source and in force. |
+| `advisory` | warning | Guidance or a regulator's reading rather than a statute. |
+| `unverified` | warning | Written from a secondary source; the primary source is not read yet. |
+| `pending` | info | Enacted but not yet applicable. |
+
+So a rule without a read primary-source citation cannot fail a posting. Shape rules
+(`pay-range/*`) carry `kind: "shape"`: they check the posting against itself and need no
+citation.
+
+`test/registry.test.ts` fails the build when a law or platform rule is missing `url`,
+`section` or `verifiedAt`, or when an in-force rule cites a host outside the allowlist in
+`src/rules/sources.ts`: EUR-Lex, `www.ontario.ca/laws`, ISAP, `developers.google.com` and
+the US state legislature hosts listed there by name.
 
 ## Pay range rules
 
