@@ -8,6 +8,7 @@ import type { CitedRule, Rule, RuleStatus } from "../src/rules/registry.ts";
 import {
   RULES,
   RULE_STATUSES,
+  applicabilityOn,
   findRule,
   registryProblems,
   ruleProblems,
@@ -27,6 +28,7 @@ const CITED: CitedRule = {
     section: "Article 1",
     verifiedAt: "2026-01-15",
   },
+  effectiveFrom: "2026-02-01",
 };
 
 function withCitation(patch: Partial<CitedRule["citation"]>): CitedRule {
@@ -67,6 +69,27 @@ test("a law or platform rule without url, section or verifiedAt fails the build"
   assert.deepEqual(ruleProblems({ ...CITED, kind: "platform", jurisdiction: "" }), [
     "the jurisdiction is empty",
   ]);
+});
+
+test("a law or platform rule with a broken effective window fails the build", () => {
+  assert.deepEqual(ruleProblems({ ...CITED, effectiveTo: "2026-02-28" }), []);
+  assert.deepEqual(ruleProblems({ ...CITED, effectiveFrom: "" }), [
+    "the rule carries no effectiveFrom date",
+  ]);
+  for (const effectiveFrom of ["2026-13-40", "01/02/2026", "2026"]) {
+    assert.equal(ruleProblems({ ...CITED, effectiveFrom }).length, 1);
+  }
+  assert.equal(ruleProblems({ ...CITED, effectiveTo: "2026" }).length, 1);
+  assert.deepEqual(ruleProblems({ ...CITED, effectiveTo: "2026-01-31" }), [
+    "effectiveTo 2026-01-31 is before effectiveFrom 2026-02-01",
+  ]);
+});
+
+test("a shape rule carries no window and always applies", () => {
+  for (const rule of RULES) {
+    assert.equal(rule.kind, "shape");
+    assert.deepEqual(applicabilityOn(rule, "1990-01-01"), { applies: true });
+  }
 });
 
 test("an in-force rule off the allowlist fails the build", () => {

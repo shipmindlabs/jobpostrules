@@ -16,7 +16,7 @@ export interface PayRange {
 
 export interface Posting {
   visibleText: string;
-  datePosted: string;
+  datePosted?: string;
   payRange?: PayRange;
 }
 
@@ -29,6 +29,16 @@ export interface Finding {
 
 export function isPeriod(value: string): value is Period {
   return (PERIODS as readonly string[]).includes(value);
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isIsoDate(value: string): boolean {
+  if (!ISO_DATE.test(value)) {
+    return false;
+  }
+  const time = Date.parse(`${value}T00:00:00Z`);
+  return !Number.isNaN(time) && new Date(time).toISOString().startsWith(value);
 }
 
 export function compareFindings(a: Finding, b: Finding): number {

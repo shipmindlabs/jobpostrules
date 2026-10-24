@@ -1,4 +1,5 @@
 import type { Severity } from "../model.ts";
+import { isIsoDate } from "../model.ts";
 import { findAllowedSource } from "./sources.ts";
 
 export const RULE_STATUSES = ["in-force", "advisory", "unverified", "pending"] as const;
@@ -25,6 +26,8 @@ export interface CitedRule {
   readonly status: RuleStatus;
   readonly summary: string;
   readonly citation: Citation;
+  readonly effectiveFrom: string;
+  readonly effectiveTo?: string;
 }
 
 export type Rule = ShapeRule | CitedRule;
@@ -42,6 +45,29 @@ export function severityForStatus(status: RuleStatus): Severity {
 
 export function severityOf(rule: Rule): Severity {
   return rule.kind === "shape" ? rule.severity : severityForStatus(rule.status);
+}
+
+export type Applicability =
+  | { readonly applies: true }
+  | { readonly applies: false; readonly reason: string };
+
+export function applicabilityOn(rule: Rule, asOf: string): Applicability {
+  if (rule.kind === "shape") {
+    return { applies: true };
+  }
+  if (asOf < rule.effectiveFrom) {
+    return {
+      applies: false,
+      reason: `the rule takes effect on ${rule.effectiveFrom}, after the as-of date ${asOf}`,
+    };
+  }
+  if (rule.effectiveTo !== undefined && asOf > rule.effectiveTo) {
+    return {
+      applies: false,
+      reason: `the rule applied through ${rule.effectiveTo}, before the as-of date ${asOf}`,
+    };
+  }
+  return { applies: true };
 }
 
 export const RULES: readonly Rule[] = [
@@ -86,16 +112,6 @@ export interface RuleProblem {
   readonly problem: string;
 }
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-function isIsoDate(value: string): boolean {
-  if (!ISO_DATE.test(value)) {
-    return false;
-  }
-  const time = Date.parse(`${value}T00:00:00Z`);
-  return !Number.isNaN(time) && new Date(time).toISOString().startsWith(value);
-}
-
 export function ruleProblems(rule: Rule): string[] {
   const problems: string[] = [];
   if (rule.id.trim() === "") {
@@ -118,6 +134,19 @@ export function ruleProblems(rule: Rule): string[] {
     problems.push("the citation carries no verifiedAt date");
   } else if (!isIsoDate(verifiedAt)) {
     problems.push(`verifiedAt ${JSON.stringify(verifiedAt)} is not a YYYY-MM-DD date`);
+  }
+  const { effectiveFrom, effectiveTo } = rule;
+  if (effectiveFrom.trim() === "") {
+    problems.push("the rule carries no effectiveFrom date");
+  } else if (!isIsoDate(effectiveFrom)) {
+    problems.push(`effectiveFrom ${JSON.stringify(effectiveFrom)} is not a YYYY-MM-DD date`);
+  }
+  if (effectiveTo !== undefined) {
+    if (!isIsoDate(effectiveTo)) {
+      problems.push(`effectiveTo ${JSON.stringify(effectiveTo)} is not a YYYY-MM-DD date`);
+    } else if (isIsoDate(effectiveFrom) && effectiveTo < effectiveFrom) {
+      problems.push(`effectiveTo ${effectiveTo} is before effectiveFrom ${effectiveFrom}`);
+    }
   }
   if (rule.status === "in-force" && url.trim() !== "" && findAllowedSource(url) === undefined) {
     problems.push(

@@ -11,8 +11,9 @@ This is a lint, not legal advice.
 
 Core phase. The pay range is in place: a range is two numbers, one currency and one
 period, or it is a finding. The rule registry is in place, so a rule can only fail a
-posting once its primary source has been read. No legal rule ships yet; jurisdiction
-rules, application questions and markup checks follow.
+posting once its primary source has been read. `lint()` is in place and reads law rules as
+of the day the ad was posted. No legal rule ships yet; jurisdiction rules, application
+questions and markup checks follow.
 
 ## Requirements
 
@@ -46,11 +47,36 @@ A `Finding` carries `ruleId`, `severity`, `message` and `at`, the path inside th
 that the finding points at. Findings sort by severity, then rule id, then path, so two
 runs over the same posting print identically.
 
+## As of the posting date
+
+A law changes on a date; an ad is posted on a date. `lint()` reads the rules as of the day
+the ad was posted, never the day the lint runs:
+
+```ts
+import { lint } from "./src/lint.ts";
+
+const result = lint(posting, manifest);
+if (result.ok) {
+  result.report.asOf; // "2026-01-15", the posting date
+  result.report.notApplied; // [{ ruleId, reason }, ...]
+}
+```
+
+`options.asOf` is used first, then `posting.datePosted`; with neither the input is refused
+as `input/no-as-of` rather than linted against today. A cited rule carries `effectiveFrom`
+and an optional `effectiveTo`, both inclusive dates: a rule whose window does not contain
+`asOf` goes into `report.notApplied` with the reason it was skipped instead of being
+dropped silently, and `report.asOf` records the date the report was built from. Shape
+rules check the posting against itself, so they carry no window and always apply.
+
+The `manifest` argument carries the JobPosting markup for the markup checks that follow;
+it is accepted and not yet read.
+
 ## Rule registry
 
 `src/rules/registry.ts` holds every rule as a record. A law or platform rule carries an
-id, a jurisdiction, a status and a citation `{url, section, verifiedAt}`. Its severity is
-derived from the status, never written by hand:
+id, a jurisdiction, a status, an effective window and a citation `{url, section,
+verifiedAt}`. Its severity is derived from the status, never written by hand:
 
 | Status | Severity | Means |
 | --- | --- | --- |
@@ -64,7 +90,8 @@ So a rule without a read primary-source citation cannot fail a posting. Shape ru
 citation.
 
 `test/registry.test.ts` fails the build when a law or platform rule is missing `url`,
-`section` or `verifiedAt`, or when an in-force rule cites a host outside the allowlist in
+`section` or `verifiedAt`, when its effective window is malformed or ends before it
+starts, or when an in-force rule cites a host outside the allowlist in
 `src/rules/sources.ts`: EUR-Lex, `www.ontario.ca/laws`, ISAP, `developers.google.com` and
 the US state legislature hosts listed there by name.
 
