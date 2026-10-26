@@ -28,6 +28,7 @@ export interface CitedRule {
   readonly citation: Citation;
   readonly effectiveFrom: string;
   readonly effectiveTo?: string;
+  readonly minHeadcount?: number;
 }
 
 export type Rule = ShapeRule | CitedRule;
@@ -101,6 +102,24 @@ export const RULES: readonly Rule[] = [
     severity: "warning",
     summary: "The stated range reads as open ended, so a candidate sees one end at most.",
   },
+  {
+    id: "jurisdiction/remote-without-region",
+    kind: "shape",
+    severity: "error",
+    summary: "The posting is marked remote and names no region the role is open to.",
+  },
+  {
+    id: "jurisdiction/unknown-region",
+    kind: "shape",
+    severity: "error",
+    summary: "A named region is neither an ISO 3166-1 country nor an ISO 3166-2 subdivision.",
+  },
+  {
+    id: "jurisdiction/unknown-headcount",
+    kind: "shape",
+    severity: "warning",
+    summary: "The employer headcount is not stated, so every headcount threshold counts as met.",
+  },
 ];
 
 export function findRule(id: string): Rule | undefined {
@@ -147,6 +166,14 @@ export function ruleProblems(rule: Rule): string[] {
     } else if (isIsoDate(effectiveFrom) && effectiveTo < effectiveFrom) {
       problems.push(`effectiveTo ${effectiveTo} is before effectiveFrom ${effectiveFrom}`);
     }
+  }
+  if (
+    rule.minHeadcount !== undefined &&
+    (!Number.isInteger(rule.minHeadcount) || rule.minHeadcount < 1)
+  ) {
+    problems.push(
+      `minHeadcount ${JSON.stringify(rule.minHeadcount)} is not a whole number of employees above zero`,
+    );
   }
   if (rule.status === "in-force" && url.trim() !== "" && findAllowedSource(url) === undefined) {
     problems.push(
