@@ -13,7 +13,8 @@ Core phase. The pay range is in place: a range is two numbers, one currency and 
 period, or it is a finding. The rule registry is in place, so a rule can only fail a
 posting once its primary source has been read. `lint()` is in place and reads law rules as
 of the day the ad was posted. The jurisdiction union is in place: the rules that apply are
-the union of every region the role is open to. No legal rule ships yet; application
+the union of every region the role is open to. The first law rules ship: Ontario's
+job-posting duties under the Employment Standards Act, 2000, Part III.1. Application
 questions and markup checks follow.
 
 ## Requirements
@@ -114,10 +115,10 @@ the jurisdiction manifest yet.
 
 ## Rule registry
 
-`src/rules/registry.ts` holds every rule as a record. A law or platform rule carries an
-id, a jurisdiction, a status, an effective window, an optional `minHeadcount` threshold
-and a citation `{url, section, verifiedAt}`. Its severity is derived from the status, never
-written by hand:
+`src/rules/registry.ts` holds the shape rules as records and the checks every rule record
+is held to. A law or platform rule carries an id, a jurisdiction, a status, an effective
+window, an optional `minHeadcount` threshold and a citation `{url, section, verifiedAt}`.
+Its severity is derived from the status, never written by hand:
 
 | Status | Severity | Means |
 | --- | --- | --- |
@@ -128,7 +129,9 @@ written by hand:
 
 So a rule without a read primary-source citation cannot fail a posting. Shape rules
 (`pay-range/*`, `jurisdiction/*`) carry `kind: "shape"`: they check the posting against
-itself and need no citation.
+itself and need no citation. A jurisdiction module exports its own records, and a caller
+composes them with `RULES`: `[...RULES, ...ONTARIO_RULES]` is what `lint()` and
+`checkJurisdiction()` accept.
 
 `test/registry.test.ts` fails the build when a law or platform rule is missing `url`,
 `section` or `verifiedAt`, when its effective window is malformed or ends before it
@@ -146,6 +149,49 @@ number of employees above zero fails the build too.
 | `pay-range/unknown-currency` | error | A currency that is not an ISO 4217 alpha-3 code. |
 | `pay-range/unknown-period` | error | A period outside `HOUR`, `DAY`, `WEEK`, `MONTH`, `YEAR`. |
 | `pay-range/open-ended` | warning | Open-ended wording in the stated range: `120k+`, `up to`, `competitive`, `DOE`. |
+
+## Ontario
+
+`src/rules/ontario.ts` reads a posting against the job-posting duties in the Employment
+Standards Act, 2000, Part III.1 and O. Reg. 476/24, in force from 2026-01-01 for an
+employer with 25 or more employees on the posting date:
+
+```ts
+import { checkOntario } from "./src/rules/ontario.ts";
+
+const report = checkOntario(posting, { employerHeadcount: 40 }, "2026-02-01");
+report.findings; // sorted findings
+report.notApplied; // [{ ruleId, reason }, ...]
+report.spread; // the width of the stated range
+report.thresholdComputed; // false unless the range is CAD a year
+```
+
+| Rule id | Severity | Refuses |
+| --- | --- | --- |
+| `ca-on/compensation-missing` | error | A posting stating neither the expected pay nor a range. |
+| `ca-on/range-too-wide` | warning | A CAD range wider than 50,000 with no exemption. |
+| `ca-on/vacancy-not-stated` | warning | A posting that does not say whether it is for an existing vacancy. |
+
+Expected pay stated as one figure is a range whose ends coincide, so `min` equals `max`
+and the width is zero. A CAD range wider than 50,000 fails unless the expected pay or the
+top of the range is above 200,000 a year; that threshold is computed for a `YEAR` range
+only. A `HOUR`, `DAY`, `WEEK` or `MONTH` range gets no exemption, `report.thresholdComputed`
+is false and a note says the threshold was not computed. A range in another currency is
+not measured against the 50,000 limit, and a note says so.
+
+The posting states whether it is for an existing vacancy through `posting.existingVacancy`:
+`true` or `false` both state it, and leaving it out is the finding.
+
+An internal posting or a general recruitment campaign declared in the manifest is not a
+publicly advertised job posting: every Ontario rule then goes to `report.notApplied` with
+its reason, as does a stated headcount below 25 and a posting date before 2026-01-01. A
+headcount that is not a stated whole number counts as meeting the threshold (fail-closed).
+
+The sections are cited as read on `www.ontario.ca/laws`. `ca-on/range-too-wide` and
+`ca-on/vacancy-not-stated` are registered as `unverified`, so they warn rather than fail:
+the width in O. Reg. 476/24 and the vacancy statement in Part III.1 are in the lint, but
+their section numbering is not confirmed in the primary source yet. `lint()` does not read
+the Ontario manifest yet.
 
 ## Fixtures
 

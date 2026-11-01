@@ -17,6 +17,7 @@ export interface PayRange {
 export interface Posting {
   visibleText: string;
   datePosted?: string;
+  existingVacancy?: boolean;
   payRange?: PayRange;
 }
 
