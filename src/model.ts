@@ -14,11 +14,23 @@ export interface PayRange {
   stated?: string;
 }
 
+export interface FormField {
+  name?: string;
+  label?: string;
+  type?: string;
+  options?: string[];
+}
+
+export interface ApplicationForm {
+  fields?: FormField[];
+}
+
 export interface Posting {
   visibleText: string;
   datePosted?: string;
   existingVacancy?: boolean;
   payRange?: PayRange;
+  applicationForm?: ApplicationForm;
 }
 
 export interface Finding {
@@ -40,6 +52,10 @@ export function isIsoDate(value: string): boolean {
   }
   const time = Date.parse(`${value}T00:00:00Z`);
   return !Number.isNaN(time) && new Date(time).toISOString().startsWith(value);
+}
+
+export function normalizeText(value: string): string {
+  return value.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 export function compareFindings(a: Finding, b: Finding): number {

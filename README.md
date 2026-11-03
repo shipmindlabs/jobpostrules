@@ -14,8 +14,9 @@ period, or it is a finding. The rule registry is in place, so a rule can only fa
 posting once its primary source has been read. `lint()` is in place and reads law rules as
 of the day the ad was posted. The jurisdiction union is in place: the rules that apply are
 the union of every region the role is open to. The first law rules ship: Ontario's
-job-posting duties under the Employment Standards Act, 2000, Part III.1. Application
-questions and markup checks follow.
+job-posting duties under the Employment Standards Act, 2000, Part III.1, covering expected
+compensation, the existing-vacancy statement, the AI-use disclosure and the
+Canadian-experience prohibition. Application questions and markup checks follow.
 
 ## Requirements
 
@@ -171,6 +172,9 @@ report.thresholdComputed; // false unless the range is CAD a year
 | `ca-on/compensation-missing` | error | A posting stating neither the expected pay nor a range. |
 | `ca-on/range-too-wide` | warning | A CAD range wider than 50,000 with no exemption. |
 | `ca-on/vacancy-not-stated` | warning | A posting that does not say whether it is for an existing vacancy. |
+| `ca-on/ai-disclosure` | error | AI-assisted screening with no disclosure sentence in the visible text. |
+| `ca-on/ai-disclosure-without-ai` | warning | A disclosure sentence with no AI-assisted step in the pipeline. |
+| `ca-on/canadian-experience` | error | A Canadian-experience requirement in the posting text or the application form. |
 
 Expected pay stated as one figure is a range whose ends coincide, so `min` equals `max`
 and the width is zero. A CAD range wider than 50,000 fails unless the expected pay or the
@@ -182,15 +186,53 @@ not measured against the 50,000 limit, and a note says so.
 The posting states whether it is for an existing vacancy through `posting.existingVacancy`:
 `true` or `false` both state it, and leaving it out is the finding.
 
-An internal posting or a general recruitment campaign declared in the manifest is not a
-publicly advertised job posting: every Ontario rule then goes to `report.notApplied` with
-its reason, as does a stated headcount below 25 and a posting date before 2026-01-01. A
-headcount that is not a stated whole number counts as meeting the threshold (fail-closed).
+### Artificial intelligence in the pipeline
+
+The manifest's `pipeline` lists the steps an applicant goes through, each with a `type` and
+an `aiAssisted` flag, and declares the sentence the ad uses to disclose that use:
+
+```ts
+const report = checkOntario(
+  posting,
+  {
+    employerHeadcount: 40,
+    pipeline: {
+      steps: [{ type: "screening", aiAssisted: true }, { type: "interview" }],
+      aiDisclosure: "Acme uses artificial intelligence to screen applicants for this role.",
+    },
+  },
+  "2026-02-01",
+);
+report.aiAssistedSteps; // ["screening"]
+report.aiDisclosureStated; // whether the declared sentence is in the visible text
+```
+
+When a `screening`, `assessment` or `selection` step is `aiAssisted`, the declared sentence
+appears in the visible text or `ca-on/ai-disclosure` fails; an `aiAssisted` step of another
+type carries no disclosure duty. A sentence that reaches the visible text while no such step
+is `aiAssisted` is `ca-on/ai-disclosure-without-ai`, a warning: the duty attaches to the use
+of the tool, not to the sentence, so the mismatch between the ad and the pipeline is reported
+rather than failed. A manifest with no `pipeline` reads no AI-assisted step, and a note says
+so.
+
+### Canadian experience
+
+Neither the posting text nor the application form schema in `posting.applicationForm` carries
+a requirement related to Canadian experience: a phrase from
+`src/lexicon/canadian-experience.ts` in the visible text, or in a form field's name, label or
+options, fails `ca-on/canadian-experience` with the matched phrase quoted and `at` pointing
+at the field. Matching is case-insensitive over normalized whitespace. The lint reads the
+phrase where it appears, not whether the sentence around it frames the experience as a
+requirement.
+
+### Citations
 
 The sections are cited as read on `www.ontario.ca/laws`. `ca-on/range-too-wide` and
 `ca-on/vacancy-not-stated` are registered as `unverified`, so they warn rather than fail:
 the width in O. Reg. 476/24 and the vacancy statement in Part III.1 are in the lint, but
-their section numbering is not confirmed in the primary source yet. `lint()` does not read
+their section numbering is not confirmed in the primary source yet.
+`ca-on/ai-disclosure-without-ai` is registered as `advisory`: it is a reading of how the
+disclosure duty attaches rather than a prohibition in the statute. `lint()` does not read
 the Ontario manifest yet.
 
 ## Fixtures
