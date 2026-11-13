@@ -73,6 +73,12 @@ export function applicabilityOn(rule: Rule, asOf: string): Applicability {
 
 export const RULES: readonly Rule[] = [
   {
+    id: "input/bad-jsonld",
+    kind: "shape",
+    severity: "error",
+    summary: "An application/ld+json script on the page is not JSON, so its markup cannot be read.",
+  },
+  {
     id: "pay-range/missing",
     kind: "shape",
     severity: "error",

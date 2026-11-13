@@ -16,14 +16,17 @@ of the day the ad was posted. The jurisdiction union is in place: the rules that
 the union of every region the role is open to. The first law rules ship: Ontario's
 job-posting duties under the Employment Standards Act, 2000, Part III.1, covering expected
 compensation, the existing-vacancy statement, the AI-use disclosure and the
-Canadian-experience prohibition. Application questions and markup checks follow.
+Canadian-experience prohibition. The posting is now read from rendered HTML: its
+JobPosting markup and its visible text. The command line, the application questions and
+the markup checks follow.
 
 ## Requirements
 
 Node 22.18 or newer. TypeScript sources run directly under Node, so there is no build
-step and no runtime dependencies.
+step. parse5 (MIT), pinned to an exact version, is the only runtime dependency.
 
 ```sh
+npm install
 npm test
 ```
 
@@ -49,6 +52,40 @@ const findings = checkPayRange({
 A `Finding` carries `ruleId`, `severity`, `message` and `at`, the path inside the posting
 that the finding points at. Findings sort by severity, then rule id, then path, so two
 runs over the same posting print identically.
+
+## Reading a rendered page
+
+The input is HTML that is already rendered: there is no network and no browser.
+`readPosting(html)` returns the JobPosting objects carried by the page's
+`application/ld+json` scripts, including those inside a `@graph`, and the visible text
+with `script`, `style`, `template`, `[hidden]` and `aria-hidden="true"` elements removed
+and whitespace normalized.
+
+```ts
+import { postingFrom, readPosting } from "./src/read.ts";
+
+const result = readPosting(html);
+if (result.ok) {
+  result.read.jobPostings; // the JobPosting objects, in document order
+  result.read.visibleText; // "Staff Engineer Acme Robotics is hiring. ..."
+  result.read.findings; // [{ ruleId: "input/bad-jsonld", ... }, ...]
+  postingFrom(result.read); // the visible text, datePosted and baseSalary as a Posting
+}
+```
+
+A script that is not JSON is `input/bad-jsonld`, a finding naming the index of that script
+among the `application/ld+json` scripts on the page: a broken block is reported, never
+thrown, and the other blocks are still read. Two JobPosting blocks that disagree on
+`title` are refused as `input/conflicting-jobposting`: which of the two the page states is
+undecidable, so the page is not linted at all rather than linted against a guess.
+
+| Rule id | Severity | Refuses |
+| --- | --- | --- |
+| `input/bad-jsonld` | error | An `application/ld+json` script that is not JSON. |
+
+`postingFrom()` reads `datePosted` and the `baseSalary` of the first JobPosting block into
+a `Posting`, so a page can be linted as it stands; whether that markup matches the visible
+page is the markup check that follows.
 
 ## As of the posting date
 
@@ -129,9 +166,9 @@ Its severity is derived from the status, never written by hand:
 | `pending` | info | Enacted but not yet applicable. |
 
 So a rule without a read primary-source citation cannot fail a posting. Shape rules
-(`pay-range/*`, `jurisdiction/*`) carry `kind: "shape"`: they check the posting against
-itself and need no citation. A jurisdiction module exports its own records, and a caller
-composes them with `RULES`: `[...RULES, ...ONTARIO_RULES]` is what `lint()` and
+(`input/*`, `pay-range/*`, `jurisdiction/*`) carry `kind: "shape"`: they check the posting
+against itself and need no citation. A jurisdiction module exports its own records, and a
+caller composes them with `RULES`: `[...RULES, ...ONTARIO_RULES]` is what `lint()` and
 `checkJurisdiction()` accept.
 
 `test/registry.test.ts` fails the build when a law or platform rule is missing `url`,

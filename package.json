@@ -32,6 +32,9 @@
     "test": "node --test test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "parse5": "7.2.1"
+  },
   "devDependencies": {
     "@types/node": "^22.18.0",
     "typescript": "^5.9.2"
