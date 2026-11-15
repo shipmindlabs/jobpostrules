@@ -23,7 +23,11 @@
   "engines": {
     "node": ">=22.18"
   },
+  "bin": {
+    "jobpostrules": "bin/jobpostrules.ts"
+  },
   "files": [
+    "bin",
     "src",
     "LICENSE",
     "README.md"

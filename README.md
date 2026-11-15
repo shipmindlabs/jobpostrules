@@ -16,9 +16,9 @@ of the day the ad was posted. The jurisdiction union is in place: the rules that
 the union of every region the role is open to. The first law rules ship: Ontario's
 job-posting duties under the Employment Standards Act, 2000, Part III.1, covering expected
 compensation, the existing-vacancy statement, the AI-use disclosure and the
-Canadian-experience prohibition. The posting is now read from rendered HTML: its
-JobPosting markup and its visible text. The command line, the application questions and
-the markup checks follow.
+Canadian-experience prohibition. The posting is read from rendered HTML: its JobPosting
+markup and its visible text. The command line is in place: `jobpostrules lint page.html
+--manifest manifest.json`. The application questions and the markup checks follow.
 
 ## Requirements
 
@@ -86,6 +86,37 @@ undecidable, so the page is not linted at all rather than linted against a guess
 `postingFrom()` reads `datePosted` and the `baseSalary` of the first JobPosting block into
 a `Posting`, so a page can be linted as it stands; whether that markup matches the visible
 page is the markup check that follows.
+
+## Command line
+
+```sh
+node bin/jobpostrules.ts lint page.html --manifest manifest.json
+node bin/jobpostrules.ts lint page.html --manifest manifest.json --as-of 2026-01-15 --json
+```
+
+`page.html` is read from disk as rendered HTML and `manifest.json` as a JSON object. The
+report prints the findings, how many of each severity there are, and the rules applied and
+not applied with the reason each was skipped. `--as-of` reads the law rules as of that day
+instead of the posting date in the markup, and `--json` prints the same report as one JSON
+object.
+
+| Exit | Means |
+| --- | --- |
+| 0 | The report carries no error; a warning is reported and does not fail the command. |
+| 1 | The report carries at least one error. |
+| 2 | The input could not be read, so nothing was linted. |
+
+An exit of 2 writes a refusal to standard error, as `{"ok": false, "refusal": {...}}` under
+`--json`:
+
+| Refusal | Means |
+| --- | --- |
+| `input/usage` | The command line could not be read. |
+| `input/unreadable-file` | The page or the manifest could not be read from disk. |
+| `input/bad-manifest` | The manifest is not a JSON object. |
+| `input/bad-as-of` | `--as-of` is not a YYYY-MM-DD date. |
+| `input/conflicting-jobposting` | Two JobPosting blocks on the page disagree on `title`. |
+| `input/no-as-of` | The page states no posting date and no `--as-of` was given. |
 
 ## As of the posting date
 
