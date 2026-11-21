@@ -18,7 +18,10 @@ job-posting duties under the Employment Standards Act, 2000, Part III.1, coverin
 compensation, the existing-vacancy statement, the AI-use disclosure and the
 Canadian-experience prohibition. The posting is read from rendered HTML: its JobPosting
 markup and its visible text. The command line is in place: `jobpostrules lint page.html
---manifest manifest.json`. The application questions and the markup checks follow.
+--manifest manifest.json`. The Google JobPosting rules ship: the required properties, the
+exact `unitText` enum, the country a fully remote role names and an expired `validThrough`,
+all read on the date the page is served. The application questions and the rest of the
+markup-to-page comparison follow.
 
 ## Requirements
 
@@ -302,6 +305,45 @@ their section numbering is not confirmed in the primary source yet.
 `ca-on/ai-disclosure-without-ai` is registered as `advisory`: it is a reading of how the
 disclosure duty attaches rather than a prohibition in the statute. `lint()` does not read
 the Ontario manifest yet.
+
+## Google JobPosting markup
+
+`src/rules/google.ts` reads the JobPosting markup on the page against Google's structured
+data documentation for job postings, cited on `developers.google.com`:
+
+```ts
+import { checkGoogle } from "./src/rules/google.ts";
+
+const report = checkGoogle(posting, markup, { workplaceType: "remote" }, { servedOn: "2026-03-01" });
+report.servedOn; // "2026-03-01", the date the markup was read on
+report.datePosted; // "2026-01-15", the date the ad was posted
+report.country; // the country a fully remote role names, if it names one
+report.findings;
+report.notApplied; // [{ ruleId, reason }, ...]
+```
+
+| Rule id | Severity | Refuses |
+| --- | --- | --- |
+| `google/required-property-missing` | error | Markup stating no `datePosted`, `description`, `hiringOrganization` or `title`. |
+| `google/location-missing` | error | Markup with neither `jobLocation` nor `applicantLocationRequirements`. |
+| `google/unit-text-not-enum` | error | A `baseSalary.value.unitText` outside `HOUR`, `DAY`, `WEEK`, `MONTH`, `YEAR`. |
+| `google/telecommute-without-country` | error | `jobLocationType` `TELECOMMUTE` naming no country. |
+| `google/telecommute-not-remote` | error | `TELECOMMUTE` markup while the manifest declares a hybrid workplace. |
+| `google/telecommute-text-unstated` | warning | `TELECOMMUTE` markup with no fully-remote statement in the visible text. |
+| `google/valid-through-expired` | error | A `validThrough` earlier than the serving date while the markup is still on the page. |
+
+The `unitText` enum is exact and case-sensitive: `"year"` fails where `YEAR` passes. A
+fully remote role names its country in `applicantLocationRequirements` or in
+`jobLocation.address.addressCountry`; a `TELECOMMUTE` block the manifest declares hybrid is
+the markup contradicting the employer, so it fails. Whether the visible text says the role
+is fully remote is read as a text heuristic over the phrases in `FULLY_REMOTE_PHRASES`, so
+a missing statement warns rather than fails.
+
+Unlike the law rules, these run on the date the page is served rather than the posting
+date: a page that is still served carries its markup today, so `options.servedOn` defaults
+to the current date and the report names both dates. A page carrying no JobPosting block
+leaves every rule in `report.notApplied` rather than failing it. The rules are registered
+as `platform` rules; `lint()` does not read them yet.
 
 ## Fixtures
 
