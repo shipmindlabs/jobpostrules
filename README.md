@@ -20,8 +20,10 @@ Canadian-experience prohibition. The posting is read from rendered HTML: its Job
 markup and its visible text. The command line is in place: `jobpostrules lint page.html
 --manifest manifest.json`. The Google JobPosting rules ship: the required properties, the
 exact `unitText` enum, the country a fully remote role names and an expired `validThrough`,
-all read on the date the page is served. The application questions and the rest of the
-markup-to-page comparison follow.
+all read on the date the page is served. The markup-to-page parity rules ship: the title,
+the salary figures, the currency and each place name the markup states must be found in the
+visible text, with the figures read in the manifest's locale rather than guessed. The
+application questions follow.
 
 ## Requirements
 
@@ -87,8 +89,8 @@ undecidable, so the page is not linted at all rather than linted against a guess
 | `input/bad-jsonld` | error | An `application/ld+json` script that is not JSON. |
 
 `postingFrom()` reads `datePosted` and the `baseSalary` of the first JobPosting block into
-a `Posting`, so a page can be linted as it stands; whether that markup matches the visible
-page is the markup check that follows.
+a `Posting`, so a page can be linted as it stands; whether that markup says what the
+visible page says is the parity check below.
 
 ## Command line
 
@@ -200,10 +202,10 @@ Its severity is derived from the status, never written by hand:
 | `pending` | info | Enacted but not yet applicable. |
 
 So a rule without a read primary-source citation cannot fail a posting. Shape rules
-(`input/*`, `pay-range/*`, `jurisdiction/*`) carry `kind: "shape"`: they check the posting
-against itself and need no citation. A jurisdiction module exports its own records, and a
-caller composes them with `RULES`: `[...RULES, ...ONTARIO_RULES]` is what `lint()` and
-`checkJurisdiction()` accept.
+(`input/*`, `pay-range/*`, `jurisdiction/*`, `parity/*`) carry `kind: "shape"`: they check
+the posting against itself and need no citation. A jurisdiction module exports its own
+records, and a caller composes them with `RULES`: `[...RULES, ...ONTARIO_RULES]` is what
+`lint()` and `checkJurisdiction()` accept.
 
 `test/registry.test.ts` fails the build when a law or platform rule is missing `url`,
 `section` or `verifiedAt`, when its effective window is malformed or ends before it
@@ -344,6 +346,58 @@ date: a page that is still served carries its markup today, so `options.servedOn
 to the current date and the report names both dates. A page carrying no JobPosting block
 leaves every rule in `report.notApplied` rather than failing it. The rules are registered
 as `platform` rules; `lint()` does not read them yet.
+
+## The markup says what the page says
+
+`src/rules/parity.ts` reads the markup field by field and looks for each value in the
+visible text: a candidate reads the page, not the JSON-LD.
+
+```ts
+import { checkParity } from "./src/rules/parity.ts";
+
+const report = checkParity(posting, markup, { locale: "en-US" });
+report.locale; // "en-US", the locale the figures were read with
+report.groupSeparator; // "," and report.decimalSeparator "."
+report.figures; // [120000, 150000], the figures the visible text states
+report.compared; // the markup paths found in the visible text
+report.notCompared; // [{ field, reason }, ...]
+report.findings;
+report.notApplied; // [{ ruleId, reason }, ...]
+```
+
+| Rule id | Severity | Refuses |
+| --- | --- | --- |
+| `parity/title-mismatch` | error | A `title` the visible text does not carry. |
+| `parity/salary-mismatch` | error | A `baseSalary` figure that is not among the figures the visible text states. |
+| `parity/currency-mismatch` | error | A currency reaching the page neither as its code nor as the locale's symbol. |
+| `parity/location-mismatch` | error | An `addressLocality`, `addressCountry` or `applicantLocationRequirements` name the visible text does not carry. |
+| `parity/ambiguous-number` | error | A figure in the visible text whose grouping cannot be read without guessing. |
+| `parity/bad-grouping` | error | A group of other than three digits after a grouping separator. |
+
+A finding names the field and both values: what the markup states and what the page states,
+so the fix is a text edit rather than a hunt. `baseSalary` is compared as `minValue` and
+`maxValue`, or as `value` where the markup states one figure, and every `addressLocality`
+and country name is compared, including each entry of a `jobLocation` array.
+
+### Reading the figures
+
+The figures in the visible text are read with the manifest's locale, never guessed:
+`120.000` is 120000 in `de-DE` and 120 in `en-US`. With no locale stated, a figure carrying
+a grouping or decimal separator is refused as `parity/ambiguous-number` and the stated
+salary goes into `report.notCompared` rather than being compared against a guess. A
+separator the stated locale uses neither for grouping nor for the decimal fraction is
+refused the same way. A group of other than three digits after a grouping separator is
+`parity/bad-grouping`: `120,00` in `en-US` is not read as 12000 and not read as 120.
+`120k` reads as 120000, but only with the explicit `k` suffix: `120` is 120 and `120kg` is
+120.
+
+The currency reaches the page as its ISO 4217 code or as the symbol the stated locale uses
+for it, so `$120,000` states USD in `en-US` and `120 000 zł` states PLN in `pl-PL`. A
+two-letter `addressCountry` such as `US` is a code rather than a name the page can carry,
+so it goes into `report.notCompared` with that reason instead of failing. A page carrying
+no JobPosting block leaves every parity rule in `report.notApplied`. The rules are shape
+rules: they hold the page against its own markup, so they carry no citation and no
+effective window. `lint()` does not read them yet.
 
 ## Fixtures
 
