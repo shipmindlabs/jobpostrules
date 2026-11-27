@@ -109,6 +109,20 @@ export const RULES: readonly Rule[] = [
     summary: "The stated range reads as open ended, so a candidate sees one end at most.",
   },
   {
+    id: "pay-channel/too-late",
+    kind: "shape",
+    severity: "error",
+    summary:
+      "A declared before-first-interview pay obligation is met neither in the ad nor by a pipeline step before the first interview.",
+  },
+  {
+    id: "pay-channel/unknown-channel",
+    kind: "shape",
+    severity: "error",
+    summary:
+      "A declared pay obligation names a channel outside in-ad, before-first-interview and on-request.",
+  },
+  {
     id: "jurisdiction/remote-without-region",
     kind: "shape",
     severity: "error",
